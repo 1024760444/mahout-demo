@@ -96,12 +96,6 @@
 	</dependencies>
 	<build>
 		<finalName>mahout-demo</finalName>
-		<resources>
-			<resource>
-				<directory>${basedir}/src/main/resources</directory>
-				<targetPath>${project.build.directory}</targetPath>
-			</resource>
-		</resources>
 		<plugins>
 			<plugin>
 				<artifactId>maven-compiler-plugin</artifactId>
