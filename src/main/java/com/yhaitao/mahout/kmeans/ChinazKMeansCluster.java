@@ -169,23 +169,15 @@ public class ChinazKMeansCluster {
 	 * @return
 	 * @throws IOException
 	 */
-	@SuppressWarnings("unchecked")
 	private static Map<String, String> readOriginalFile(String local) throws IOException {
 		InputStreamReader reader = new InputStreamReader(new FileInputStream(local));
 		BufferedReader br = new BufferedReader(reader);
 		String line = null;
 		Map<String, String> mapResult = new HashMap<String, String>();
 		while((line = br.readLine()) != null) {
-			line.replaceAll("网站简介：", " ");
-			List<Object> dataList = GSON.fromJson(line, List.class);
-			for(Object data : dataList) {
-				Map<String, String> dataMap = GSON.fromJson(data.toString(), Map.class);
-				String domain = dataMap.get("domain");
-				String desc = dataMap.get("desc");
-				String name = dataMap.get("name");
-				if(null != domain && !"".equals(domain)) {
-					mapResult.put(domain, name + " " + desc);
-				}
+			String[] split = line.split("\t");
+			if(split != null && split.length > 2) {
+				mapResult.put(split[0].trim(), split[1].trim());
 			}
 		}
 		br.close();

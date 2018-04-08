@@ -14,7 +14,6 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.gson.Gson;
 import com.yhaitao.mahout.crawler.bean.ChinazWeb;
 import com.yhaitao.mahout.http.MarkHttpClient;
 
@@ -24,7 +23,6 @@ import com.yhaitao.mahout.http.MarkHttpClient;
  *
  */
 public class ChinazCrawler {
-	private final static Gson GSON = new Gson();
 	private final static Logger LOGGER = LoggerFactory.getLogger(ChinazCrawler.class);
 	private static String url = "jdbc:mysql://172.19.10.33:3306/kmeans?characterEncoding=utf8";
 	private static String uname = "root";
@@ -60,7 +58,7 @@ public class ChinazCrawler {
 			try {
 				String response = httpClient.httpGet(crawlerUrl);
 				List<ChinazWeb> filterList = filterList(response);
-				FileUtils.write(new File(fileName), GSON.toJson(filterList) + "\n", "UTF-8", true);
+				FileUtils.write(new File(fileName), getTheData(filterList) + "\n", "UTF-8", true);
 				saveToMysql(filterList);
 				filterList.clear();
 				LOGGER.info("httpGet : {}, success. ", crawlerUrl);
@@ -69,6 +67,24 @@ public class ChinazCrawler {
 				continue ;
 			}
 		}
+	}
+	
+	/**
+	 * 
+	 * @param filterList
+	 * @return
+	 */
+	private static String getTheData(List<ChinazWeb> filterList) {
+		StringBuffer sbData = new StringBuffer();
+		for(ChinazWeb webInfo : filterList) {
+			sbData.append(webInfo.getDomain())
+			.append("\t")
+			.append(webInfo.getName())
+			.append(" ")
+			.append(webInfo.getDesc())
+			.append("\n");
+		}
+		return sbData.toString();
 	}
 	
 	/**
@@ -135,7 +151,7 @@ public class ChinazCrawler {
 			String domain = filter(webContext, "<span class=\"col-gray\">(.*?)</span>");
 			ChinazWeb web = new ChinazWeb();
 			web.setName(name);
-			web.setDesc(desc.replaceAll("网站简介：", " "));
+			web.setDesc(desc.replaceAll("网站简介：", "").replaceAll(":", "").replaceAll("：", "").replaceAll("\t", ""));
 			web.setDomain(domain);
 			webList.add(web);
 		}

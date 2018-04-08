@@ -9,11 +9,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 public class TestSortMapByValue {
-	public static void sortByValue() {
-
-	}
-
 	public static void main(String[] args) {
+//		String line = "wallpaper.desktx.com	桌面天下-桌面壁纸频道 桌面天下-桌面壁纸频道是壁纸爱好者和壁纸收藏家的乐园，在这里您每天都可以下载到最新的多种分辨率的无水印桌面壁纸；桌面天下桌面壁纸栏目打造国内最专业的壁纸下载旗舰站...";
+//		String[] split = line.split("\t");
+//		System.err.println(split[0]);
+//		System.err.println(split[1]);
 		Map<Integer, Integer> map = new HashMap<Integer, Integer>();
 		map.put(28067, 33);
 		map.put(8280, 56);
