@@ -15,7 +15,7 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.db.DBConfiguration;
-import org.apache.mahout.clustering.classify.WeightedVectorWritable;
+import org.apache.mahout.clustering.classify.WeightedPropertyVectorWritable;
 import org.apache.mahout.math.NamedVector;
 import org.apache.mahout.math.Vector.Element;
 
@@ -28,7 +28,7 @@ import com.yhaitao.mahout.utils.CollectionsUtils;
  * @author yanghaitao
  *
  */
-public class ClusterResultReducer extends Reducer<IntWritable, WeightedVectorWritable, ClusterResult, NullWritable> {
+public class ClusterResultReducer extends Reducer<IntWritable, WeightedPropertyVectorWritable, ClusterResult, NullWritable> {
 	/**
 	 * 数据插入语句。
 	 */
@@ -55,12 +55,12 @@ public class ClusterResultReducer extends Reducer<IntWritable, WeightedVectorWri
 	 * Mysql : cluster_type, cluster_id, web_domain
 	 * Mysql : cluster_type, cluster_id, cluster_keys, keys_number
 	 */
-	protected void reduce(IntWritable key, Iterable<WeightedVectorWritable> values, Context context)
+	protected void reduce(IntWritable key, Iterable<WeightedPropertyVectorWritable> values, Context context)
 			throws IOException, InterruptedException {
 		Map<Integer, Integer> keyNumber = new HashMap<Integer, Integer>();
-		Iterator<WeightedVectorWritable> iterator = values.iterator();
+		Iterator<WeightedPropertyVectorWritable> iterator = values.iterator();
 		while(iterator.hasNext()) {
-			WeightedVectorWritable next = iterator.next();
+			WeightedPropertyVectorWritable next = iterator.next();
 			NamedVector namedVector = (NamedVector) next.getVector();
 			
 			// 获取各个分词在聚类中出现次数

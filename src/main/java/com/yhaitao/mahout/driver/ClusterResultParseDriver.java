@@ -10,7 +10,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.db.DBConfiguration;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.util.ToolRunner;
-import org.apache.mahout.clustering.classify.WeightedVectorWritable;
+import org.apache.mahout.clustering.classify.WeightedPropertyVectorWritable;
 import org.apache.mahout.common.AbstractJob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,7 +69,7 @@ public class ClusterResultParseDriver extends AbstractJob {
 	    // Map任务： 采集必要的统计数据
 	    countJob.setMapperClass(ClusterResultMapper.class);
 	    countJob.setMapOutputKeyClass(IntWritable.class);
-	    countJob.setMapOutputValueClass(WeightedVectorWritable.class);
+	    countJob.setMapOutputValueClass(WeightedPropertyVectorWritable.class);
 	    
 	    // Reduce任务： 最低粒度的统计计算
 	    countJob.setReducerClass(ClusterResultReducer.class);

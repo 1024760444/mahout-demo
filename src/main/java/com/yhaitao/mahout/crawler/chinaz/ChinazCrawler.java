@@ -1,6 +1,5 @@
 package com.yhaitao.mahout.crawler.chinaz;
 
-import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -10,7 +9,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,26 +29,26 @@ public class ChinazCrawler {
 	/**
 	 * 数据插入语句。
 	 */
-	private static final String SAVE_SQL = "replace into chinaz_web_info (name,domain) values (?,?)";
+	private static final String SAVE_SQL = "replace into chinaz_web_info (domain, web_name, web_desc) values (?, ?, ?)";
 	
 	/**
 	 * 抓取网页域名与网站描述。以域名为key，描述为value保存到内存Map中，最终写到本地文件。
 	 * @param args 输入抓取数据保存文件
-	 * D:\tmp\chinaz_web_context.txt jdbc:mysql://172.19.10.33:3306/kmeans?characterEncoding=utf8 root 123456
+	 * jdbc:mysql://172.19.10.33:3306/kmeans?characterEncoding=utf8 root 123456
 	 * @throws Exception
 	 */
 	public static void main(String[] args) throws Exception {
-		readOriginalFile(args[0]);
-		url = args[1];
-		uname = args[2];
-		passwd = args[3];
+		readOriginalFile();
+		url = args[0];
+		uname = args[1];
+		passwd = args[2];
 	}
 	
 	/**
 	 * 原始数据文件。
 	 * @return key文本标识，value文本内容
 	 */
-	private static void readOriginalFile(String fileName) {
+	private static void readOriginalFile() {
 		MarkHttpClient httpClient = new MarkHttpClient();
 		String baseUrl = "http://top.chinaz.com/hangye/";
 		for(int i = 1; i <= 1881; i++) {
@@ -58,7 +56,7 @@ public class ChinazCrawler {
 			try {
 				String response = httpClient.httpGet(crawlerUrl);
 				List<ChinazWeb> filterList = filterList(response);
-				FileUtils.write(new File(fileName), getTheData(filterList) + "\n", "UTF-8", true);
+				// FileUtils.write(new File(fileName), GSON.toJson(filterList) + "\n", "UTF-8", true);
 				saveToMysql(filterList);
 				filterList.clear();
 				LOGGER.info("httpGet : {}, success. ", crawlerUrl);
@@ -70,37 +68,20 @@ public class ChinazCrawler {
 	}
 	
 	/**
-	 * 
-	 * @param filterList
-	 * @return
-	 */
-	private static String getTheData(List<ChinazWeb> filterList) {
-		StringBuffer sbData = new StringBuffer();
-		for(ChinazWeb webInfo : filterList) {
-			sbData.append(webInfo.getDomain())
-			.append("\t")
-			.append(webInfo.getName())
-			.append(" ")
-			.append(webInfo.getDesc())
-			.append("\n");
-		}
-		return sbData.toString();
-	}
-	
-	/**
 	 * 将数据保存到Mysql。
 	 * @param filterList
 	 * @throws Exception 
 	 */
-	private static void saveToMysql(List<ChinazWeb> filterList) throws Exception {
+	public static void saveToMysql(List<ChinazWeb> filterList) throws Exception {
 		Connection connection = null;
 		PreparedStatement statement = null;
 		connection = getConnection();
 		connection.setAutoCommit(false);
 		statement = connection.prepareStatement(SAVE_SQL);
 		for (ChinazWeb webInfo : filterList) {
-		    statement.setString(1, webInfo.getName());
-		    statement.setString(2, webInfo.getDomain());
+			statement.setString(1, webInfo.getDomain());
+		    statement.setString(2, webInfo.getName());
+		    statement.setString(3, webInfo.getDesc());
 			statement.addBatch();
 		}
 		statement.executeBatch();
@@ -151,7 +132,7 @@ public class ChinazCrawler {
 			String domain = filter(webContext, "<span class=\"col-gray\">(.*?)</span>");
 			ChinazWeb web = new ChinazWeb();
 			web.setName(name);
-			web.setDesc(desc.replaceAll("网站简介：", "").replaceAll(":", "").replaceAll("：", "").replaceAll("\t", ""));
+			web.setDesc(desc.replaceAll("网站简介：", "").replaceAll(":", "").replaceAll("：", ""));
 			web.setDomain(domain);
 			webList.add(web);
 		}

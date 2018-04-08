@@ -93,6 +93,17 @@
 			<artifactId>commons-pool</artifactId>
 			<version>1.6</version>
 		</dependency>
+		<!-- ikanalyzer -->
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-core</artifactId>
+			<version>4.0.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.janeluo</groupId>
+			<artifactId>ikanalyzer</artifactId>
+			<version>2012_u6</version>
+		</dependency>
 	</dependencies>
 	<build>
 		<finalName>mahout-demo</finalName>

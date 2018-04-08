@@ -1,10 +1,11 @@
 package com.yhaitao.mahout.kmeans;
 
-import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.URI;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,6 +25,7 @@ import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.Writer;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.MRJobConfig;
+import org.apache.hadoop.mapreduce.lib.db.DBConfiguration;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.mahout.clustering.kmeans.KMeansDriver;
@@ -31,6 +33,7 @@ import org.apache.mahout.vectorizer.SparseVectorsFromSequenceFiles;
 
 import com.google.gson.Gson;
 import com.yhaitao.mahout.driver.ClusterResultParseDriver;
+import com.yhaitao.mahout.driver.OutputDictionaryDriver;
 
 /**
  * 将本地的站长之家数据文件以SequenceFile方式上传到HDFS。
@@ -54,7 +57,6 @@ public class ChinazKMeansCluster {
 		String in = commands.getOptionValue("in");
 		String out = commands.getOptionValue("out");
 		String extJars = commands.getOptionValue("extJars");
-		String local = commands.getOptionValue("local");
 		
 		String url = commands.getOptionValue("url");
 		String uname = commands.getOptionValue("uname");
@@ -65,13 +67,15 @@ public class ChinazKMeansCluster {
 		URI[] uriArray = getExtJars(conf, extJars);
 		String sfiles = StringUtils.uriToString(uriArray);
 		conf.set(MRJobConfig.CACHE_FILES, sfiles);
+		DBConfiguration.configureDB(conf, "com.mysql.jdbc.Driver", url, uname, passwd);
+		DBConfiguration dbConf = new DBConfiguration(conf);
 		
 		/**
 		 * 原始数据
 		 * key ： 网站域名
 		 * value ： 网站文本描述
 		 */
-		Map<String, String> map = ChinazKMeansCluster.readOriginalFile(local);
+		Map<String, String> map = readOriginalFile(dbConf);
 		
 		// 数据写入HDFS
 		writeToSequenceFile(conf, in, map);
@@ -101,8 +105,31 @@ public class ChinazKMeansCluster {
 		 * 聚类结果解析
 		 */
 		kmeansClusterParse(conf, out, url, uname, passwd);
+		
+		// 词典导出
+		kmeansDictionaryOutput(conf, out, url, uname, passwd);
 	}
 	
+	/**
+	 * 词典导出
+	 * @param conf
+	 * @param out
+	 * @param url
+	 * @param uname
+	 * @param passwd
+	 * @throws Exception 
+	 */
+	private static void kmeansDictionaryOutput(Configuration conf, String out,
+			String url, String uname, String passwd) throws Exception {
+		String[] args = {
+				"-i", out + "/dictionary.file-0",
+				"-url", "jdbc:mysql://172.19.10.33:3306/kmeans",
+				"-uname", "root",
+				"-passwd", "123456",
+		};
+		ToolRunner.run(conf, new OutputDictionaryDriver(), args);
+	}
+
 	/**
 	 * 解析聚类结果，导入Mysql中。
 	 * @param conf 环境配置
@@ -168,20 +195,24 @@ public class ChinazKMeansCluster {
 	 * @param local
 	 * @return
 	 * @throws IOException
+	 * @throws SQLException 
+	 * @throws ClassNotFoundException 
 	 */
-	private static Map<String, String> readOriginalFile(String local) throws IOException {
-		InputStreamReader reader = new InputStreamReader(new FileInputStream(local));
-		BufferedReader br = new BufferedReader(reader);
-		String line = null;
+	private static Map<String, String> readOriginalFile(DBConfiguration dbConf) throws IOException, ClassNotFoundException, SQLException {
 		Map<String, String> mapResult = new HashMap<String, String>();
-		while((line = br.readLine()) != null) {
-			String[] split = line.split("\t");
-			if(split != null && split.length > 2) {
-				mapResult.put(split[0].trim(), split[1].trim());
+		Connection connection = dbConf.getConnection();
+		Statement statement = connection.createStatement();
+		ResultSet resultSet = statement.executeQuery("select domain, web_name, web_desc from chinaz_web_info");
+		if(resultSet != null) {
+			while(resultSet.next()) {
+				String domain = resultSet.getString("domain");
+				String web_name = resultSet.getString("web_name");
+				String web_desc = resultSet.getString("web_desc");
+				if(null != domain && !"".equals(domain)) {
+					mapResult.put(domain, web_name + " " + web_desc);
+				}
 			}
 		}
-		br.close();
-		reader.close();
 		return mapResult;
 	}
 	
@@ -242,7 +273,6 @@ public class ChinazKMeansCluster {
 		CommandLine commands = parser.parse(options, args);
 		if(!commands.hasOption("in")
 				|| !commands.hasOption("out")
-				|| !commands.hasOption("local")
 				|| !commands.hasOption("url")
 				|| !commands.hasOption("uname")
 				|| !commands.hasOption("passwd")
@@ -262,7 +292,6 @@ public class ChinazKMeansCluster {
 		Options options = new Options();
 		options.addOption("in", true, "[required] HDFS path for kmeans input");
 		options.addOption("out", true, "[required] HDFS path for kmeans out");
-		options.addOption("local", true, "[required] local data path");
 		options.addOption("url", true, "[required] mysql url. e.g. jdbc:mysql://172.19.10.33:3306/kmeans");
 		options.addOption("uname", true, "[required] mysql uname. e.g. root");
 		options.addOption("passwd", true, "[required] mysql passwd. e.g. 123456");
