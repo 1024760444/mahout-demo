@@ -6,21 +6,12 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.Writer;
 import org.apache.hadoop.io.Text;
@@ -31,9 +22,9 @@ import org.apache.hadoop.util.ToolRunner;
 import org.apache.mahout.clustering.kmeans.KMeansDriver;
 import org.apache.mahout.vectorizer.SparseVectorsFromSequenceFiles;
 
-import com.google.gson.Gson;
 import com.yhaitao.mahout.driver.ClusterResultParseDriver;
 import com.yhaitao.mahout.driver.OutputDictionaryDriver;
+import com.yhaitao.mahout.utils.ParamsUtils;
 
 /**
  * 将本地的站长之家数据文件以SequenceFile方式上传到HDFS。
@@ -41,16 +32,22 @@ import com.yhaitao.mahout.driver.OutputDictionaryDriver;
  *
  */
 public class ChinazKMeansCluster {
-	public final static Gson GSON = new Gson();
-	
 	/**
 	 * 任务入口。
+	 * hadoop jar mahout-demo.jar com.yhaitao.mahout.kmeans.ChinazKMeansCluster 
+	 * -in /tmp/kmeans/input 
+	 * -out /tmp/kmeans/output 
+	 * -extJars /tmp/lib/mahout-demo 
+	 * -url jdbc:mysql://172.19.10.33:3306/kmeans 
+	 * -uname root 
+	 * -passwd 123456
+	 * 
 	 * @param args
 	 * @throws Exception
 	 */
 	public static void main(String[] args) throws Exception {
 		// 参数解析，获取参数
-		CommandLine commands = getCommandLine(args);
+		CommandLine commands = ParamsUtils.getCommandLine(args);
 		if(commands == null) {
 			return ;
 		}
@@ -64,7 +61,7 @@ public class ChinazKMeansCluster {
 		
 		// 参数设置
 		Configuration conf = new Configuration();
-		URI[] uriArray = getExtJars(conf, extJars);
+		URI[] uriArray = ParamsUtils.getExtJars(conf, extJars);
 		String sfiles = StringUtils.uriToString(uriArray);
 		conf.set(MRJobConfig.CACHE_FILES, sfiles);
 		DBConfiguration.configureDB(conf, "com.mysql.jdbc.Driver", url, uname, passwd);
@@ -177,7 +174,7 @@ public class ChinazKMeansCluster {
 	 * @param out
 	 * @throws Exception 
 	 */
-	public static void sequenceToSparse(Configuration conf, String in, String out) throws Exception {
+	private static void sequenceToSparse(Configuration conf, String in, String out) throws Exception {
 		String[] args = {
 				"-i", in,
 				"-o", out,
@@ -217,31 +214,11 @@ public class ChinazKMeansCluster {
 	}
 	
 	/**
-	 * 获取第三方jar包的路径。
-	 * @param conf 集群配置
-	 * @param extJarsPath 第三方Jar包路径
-	 * @return 路径
+	 * 序列化SequenceFile并上传数据到HDFS。
+	 * @param conf 集群配置信息
+	 * @param in 序列化文件保存的HDFS目录
+	 * @param map 文件数据
 	 * @throws IOException
-	 */
-	private static URI[] getExtJars(Configuration conf, String extJarsPath) throws IOException {
-		// 读取hdfs文件，获取jar列表
-		FileSystem fileSystem = FileSystem.get(conf);
-		RemoteIterator<LocatedFileStatus> listFiles = fileSystem.listFiles(new Path(extJarsPath), false);
-		List<URI> uriList = new ArrayList<URI>();
-		while(listFiles.hasNext()) {
-			LocatedFileStatus next = listFiles.next();
-			uriList.add(next.getPath().toUri());
-		}
-		fileSystem.close();
-		URI[] array = new URI[uriList.size()];
-		return uriList.toArray(array);
-	}
-	
-	/**
-	 * 数据上传HDFS。
-	 * @param original
-	 * @param in
-	 * @throws IOException 
 	 */
 	private static void writeToSequenceFile(Configuration conf, String in, Map<String, String> map) throws IOException {
 		// SequenceFile写入工具
@@ -260,51 +237,5 @@ public class ChinazKMeansCluster {
 			writer.append(new Text(key), new Text(value));
 		}
 		writer.close();
-	}
-	
-	/**
-	 * 入参校验
-	 * @param args 入参
-	 * @throws ParseException 
-	 */
-	private static CommandLine getCommandLine(String[] args) throws ParseException {
-		Options options = buildOptions();
-		BasicParser parser = new BasicParser();
-		CommandLine commands = parser.parse(options, args);
-		if(!commands.hasOption("in")
-				|| !commands.hasOption("out")
-				|| !commands.hasOption("url")
-				|| !commands.hasOption("uname")
-				|| !commands.hasOption("passwd")
-				|| !commands.hasOption("extJars")) {
-			printUsage(options);
-			return null;
-		} else {
-			return commands;
-		}
-	}
-	
-	/**
-	 * 输入信息提示。
-	 * @return 需要输入数据的说明
-	 */
-	private static Options buildOptions() {
-		Options options = new Options();
-		options.addOption("in", true, "[required] HDFS path for kmeans input");
-		options.addOption("out", true, "[required] HDFS path for kmeans out");
-		options.addOption("url", true, "[required] mysql url. e.g. jdbc:mysql://172.19.10.33:3306/kmeans");
-		options.addOption("uname", true, "[required] mysql uname. e.g. root");
-		options.addOption("passwd", true, "[required] mysql passwd. e.g. 123456");
-		options.addOption("extJars", true, "[required] HDFS path ext jars");
-		return options;
-	}
-	
-	/**
-	 * 打印输入信息。
-	 * @param options 打印输入帮助信息。
-	 */
-	public static void printUsage(Options options) {
-		HelpFormatter help = new HelpFormatter();
-		help.printHelp("Job of KMeansCluster need Params : ", options);
 	}
 }

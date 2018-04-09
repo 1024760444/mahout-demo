@@ -35,7 +35,7 @@ public class OutputDictionaryDriver extends AbstractJob {
 	private final static String[] FIELDNAMES = new String[]{"dic_id", "dic_name"};
 	
 	/**
-	 * hadoop jar mahout-demo.jar com.yhaitao.mahout.driver.OutputDictionaryDriver -i /tmp/kmeans/output/dictionary.file-0 -url jdbc:mysql://172.19.10.33:3306/kmeans -uname root -passwd 123456
+	 * hadoop jar mahout-demo.jar com.yhaitao.mahout.driver.OutputDictionaryDriver -i /tmp/kmeans/output/output/clusteredPoints -url jdbc:mysql://172.19.10.33:3306/kmeans -uname root -passwd 123456
 	 * @param args
 	 * @throws Exception
 	 */

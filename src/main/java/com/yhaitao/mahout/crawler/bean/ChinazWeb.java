@@ -27,6 +27,14 @@ public class ChinazWeb implements DBWritable {
 	 */
 	private String class_name;
 	
+	public ChinazWeb() {}
+	public ChinazWeb(String name, String desc, String domain, String class_name) {
+		this.name = name;
+		this.desc = desc;
+		this.domain = domain;
+		this.class_name = class_name;
+	}
+	
 	@Override
 	public void write(PreparedStatement statement) throws SQLException {
 	    int index = 1;

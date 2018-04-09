@@ -39,6 +39,7 @@ public class ClusterResultParseDriver extends AbstractJob {
 	
 	/**
 	 * 聚类结果解析入口。
+	 * hadoop jar mahout-demo.jar com.yhaitao.mahout.driver.ClusterResultParseDriver -i /tmp/kmeans/output/dictionary.file-0 -url jdbc:mysql://172.19.10.33:3306/kmeans -uname root -passwd 123456
 	 * @param args 
 	 * @throws Exception 
 	 */
