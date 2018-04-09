@@ -22,12 +22,18 @@ public class ChinazWeb implements DBWritable {
 	 */
 	private String domain;
 	
+	/**
+	 * 网站分类
+	 */
+	private String class_name;
+	
 	@Override
 	public void write(PreparedStatement statement) throws SQLException {
 	    int index = 1;
+	    statement.setString(index++, this.getDomain());
+	    statement.setString(index++, this.getClass_name());
 	    statement.setString(index++, this.getName());
 	    statement.setString(index++, this.getDesc());
-	    statement.setString(index++, this.getDomain());
 	}
 
 	@Override
@@ -57,4 +63,11 @@ public class ChinazWeb implements DBWritable {
 		this.domain = domain;
 	}
 
+	public String getClass_name() {
+		return class_name;
+	}
+
+	public void setClass_name(String class_name) {
+		this.class_name = class_name;
+	}
 }

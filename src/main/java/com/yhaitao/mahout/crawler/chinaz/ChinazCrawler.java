@@ -29,7 +29,7 @@ public class ChinazCrawler {
 	/**
 	 * 数据插入语句。
 	 */
-	private static final String SAVE_SQL = "replace into chinaz_web_info (domain, web_name, web_desc) values (?, ?, ?)";
+	private static final String SAVE_SQL = "replace into chinaz_web_info (domain, class_name, web_name, web_desc) values (?, ?, ?, ?)";
 	
 	/**
 	 * 抓取网页域名与网站描述。以域名为key，描述为value保存到内存Map中，最终写到本地文件。
@@ -47,26 +47,90 @@ public class ChinazCrawler {
 	/**
 	 * 原始数据文件。
 	 * @return key文本标识，value文本内容
+	 * @throws Exception 
 	 */
-	private static void readOriginalFile() {
+	private static void readOriginalFile() throws Exception {
 		MarkHttpClient httpClient = new MarkHttpClient();
 		String baseUrl = "http://top.chinaz.com/hangye/";
-		for(int i = 1; i <= 1881; i++) {
-			String crawlerUrl = (i == 1) ? baseUrl : (baseUrl + "index_" + i + ".html");
-			try {
-				String response = httpClient.httpGet(crawlerUrl);
-				List<ChinazWeb> filterList = filterList(response);
-				// FileUtils.write(new File(fileName), GSON.toJson(filterList) + "\n", "UTF-8", true);
-				saveToMysql(filterList);
-				filterList.clear();
-				LOGGER.info("httpGet : {}, success. ", crawlerUrl);
-			} catch (Exception e) {
-				LOGGER.warn("httpGet : {}, Exception : {}. ", crawlerUrl, e.getMessage());
-				continue ;
+		String response = httpClient.httpGet(baseUrl);
+		getClassObject(response);
+	}
+	
+	/**
+	 * 抓取所有分类网页。
+	 * @param response
+	 * @throws Exception
+	 */
+	private static void getClassObject(String response) throws Exception {
+		Pattern pa = Pattern.compile("<a class=\"TNMI-SubItem\" href=\"(.*?)\" >(.*?)</a>");
+		Matcher ma = pa.matcher(response);
+		while (ma.find()) {
+			// 分类名称与基础网页
+			String className = ma.group(2);
+			String baseUrl = ma.group(1);
+			baseUrl = baseUrl.startsWith("http:") ? baseUrl : ("http:" + baseUrl);
+			if(baseUrl.endsWith(".html")) {
+				getClassObject(baseUrl, className);
 			}
+			LOGGER.info("baseUrl : {}", baseUrl);
 		}
 	}
 	
+	/**
+	 * 抓取单个分类的网页。
+	 * @param url http://top.chinaz.com/hangye/index_jiaoyu.html
+	 * @param className
+	 * @throws Exception
+	 */
+	private static void getClassObject(String url, String className) throws Exception {
+		MarkHttpClient httpClient = new MarkHttpClient();
+		String response = httpClient.httpGet(url);
+		int maxPage = getMaxPage(response);
+		List<ChinazWeb> filterList = filterList(response, className);
+		for(int i = 2; i <= maxPage; i++) {
+			String get_url = url.substring(0, url.indexOf(".html")) + "_" + i + ".html";
+			try {
+				String httpGet = httpClient.httpGet(get_url);
+				filterList.addAll(filterList(httpGet, className));
+				LOGGER.info("get_url : {}, success ", get_url);
+			} catch (Exception e) {
+				LOGGER.info("get_url : {}, Excpetion : {}", get_url, e.getMessage());
+			}
+		}
+		saveToMysql(filterList);
+	}
+
+	private static int getMaxPage(String response) {
+		// <div class="ListPageWrap"></div>
+		Pattern pa = Pattern.compile("<div class=\"ListPageWrap\">(.*?)</div>");
+		Matcher ma = pa.matcher(response);
+		ma.find();
+		String pageNumberText = ma.group(1);
+		int max = getNumber(pageNumberText);
+		return max;
+	}
+	
+	private static int getNumber(String text) {
+		// <a class="Pagecurt" href="index_shenghuo.html">1</a>
+		Pattern pa = Pattern.compile("<a href=\"(.*?)\">(.*?)</a>");
+		Matcher ma = pa.matcher(text);
+		int max = 0;
+		while (ma.find()) {
+			// 分类名称与基础网页
+			int pN = toInt(ma.group(2), 0);
+			if(pN > max) max = pN;
+		}
+		return max;
+	}
+	
+	private static int toInt(String str, int def) {
+		try {
+			return Integer.valueOf(str);
+		} catch (Exception e) {
+			return def;
+		}
+	}
+
 	/**
 	 * 将数据保存到Mysql。
 	 * @param filterList
@@ -79,9 +143,7 @@ public class ChinazCrawler {
 		connection.setAutoCommit(false);
 		statement = connection.prepareStatement(SAVE_SQL);
 		for (ChinazWeb webInfo : filterList) {
-			statement.setString(1, webInfo.getDomain());
-		    statement.setString(2, webInfo.getName());
-		    statement.setString(3, webInfo.getDesc());
+			webInfo.write(statement);
 			statement.addBatch();
 		}
 		statement.executeBatch();
@@ -121,7 +183,7 @@ public class ChinazCrawler {
 	 * @param context 网页源码
 	 * @return 网页的标题
 	 */
-	private static List<ChinazWeb> filterList(String context) {
+	private static List<ChinazWeb> filterList(String context, String class_name) {
 		List<ChinazWeb> webList = new ArrayList<ChinazWeb>();
 		Pattern pa = Pattern.compile("<div class=\"CentTxt\">(.*?)<div class=\"RtCRateWrap\">");
 		Matcher ma = pa.matcher(context);
@@ -134,6 +196,7 @@ public class ChinazCrawler {
 			web.setName(name);
 			web.setDesc(desc.replaceAll("网站简介：", "").replaceAll(":", "").replaceAll("：", ""));
 			web.setDomain(domain);
+			web.setClass_name(class_name);
 			webList.add(web);
 		}
 		return webList;
