@@ -8,7 +8,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +23,9 @@ import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.lib.db.DBConfiguration;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.ToolRunner;
+import org.apache.mahout.classifier.naivebayes.test.TestNaiveBayesDriver;
+import org.apache.mahout.classifier.naivebayes.training.TrainNaiveBayesJob;
+import org.apache.mahout.utils.SplitInput;
 import org.apache.mahout.vectorizer.SparseVectorsFromSequenceFiles;
 
 import com.yhaitao.mahout.crawler.bean.ChinazWeb;
@@ -67,12 +69,12 @@ public class ChinazBayesClassifier {
 		/**
 		 * 读取数据库中已有的样本数据。
 		 */
-		Map<String, List<ChinazWeb>> classWebMap = readOriginalFile(conf);
+		List<ChinazWeb> webInfoList = readOriginalFile(conf);
 		
 		/**
 		 * 根据分类名称序列化数据到HDFS
 		 */
-		writeToSequenceFile(conf, in, classWebMap);
+		writeToSequenceFile(conf, in, webInfoList);
 		
 		/**
 		 * 根据IK分词生成特征向量
@@ -83,8 +85,94 @@ public class ChinazBayesClassifier {
 		 * -a org.wltea.analyzer.lucene.IKAnalyzer
 		 */
 		sequenceToSparse(conf, in, out);
+		
+		/**
+		 * 向量拆分：训练集与测试集
+		 * mahout split 
+		 * --input /tmp/bayes/output/tfidf-vectors 
+		 * --trainingOutput /tmp/bayes/output/trainingOutput 
+		 * --testOutput /tmp/bayes/output/testOutput 
+		 * --randomSelectionPct 20 --overwrite --sequenceFiles --method sequential
+		 */
+		splitSparses(conf, out);
+		
+		/**
+		 * 训练
+		 * mahout trainnb 
+		 * -i /tmp/bayes/output/trainingOutput 
+		 * -o /tmp/bayes/output/model 
+		 * -li /tmp/bayes/output/labelindex 
+		 * -ow -c -el 
+		 */
+		trainnb(conf, out);
+		
+		/**
+		 * 测试
+		 * mahout testnb 
+		 * -i /tmp/bayes/output/testOutput 
+		 * -m /tmp/bayes/output/model 
+		 * -l /tmp/bayes/output/labelindex 
+		 * -o /tmp/bayes/output/test_20180409_1 
+		 * -c -ow 
+		 */
+		testnb(conf, out);
 	}
 	
+	/**
+	 * 测试测试集
+	 * @param conf 环境配置
+	 * @param out 输出目录
+	 * @throws Exception 
+	 */
+	private static void testnb(Configuration conf, String out) throws Exception {
+		String[] args = {
+				"-i", out + "/testOutput",
+				"-m", out + "/model",
+				"-l", out + "/labelindex", 
+				"-o", out + "/testing-result", 
+				"-ow", 
+				"-c"
+		};
+		ToolRunner.run(conf, new TestNaiveBayesDriver(), args);
+	}
+
+	/**
+	 * 训练训练集
+	 * @param conf 环境配置
+	 * @param out 输出目录
+	 * @throws Exception 
+	 */
+	private static void trainnb(Configuration conf, String out) throws Exception {
+		String[] args = {
+				"-i", out + "/trainingOutput",
+				"-o", out + "/model",
+				"-li", out + "/labelindex", 
+				"-el", 
+				"-ow", 
+				"-c"
+		};
+		ToolRunner.run(conf, new TrainNaiveBayesJob(), args);
+	}
+
+	/**
+	 * 数据拆分为训练集与测试集
+	 * @param conf 环境配置
+	 * @param out 输出目录
+	 * @throws Exception 
+	 */
+	private static void splitSparses(Configuration conf, String out) throws Exception {
+		String[] args = {
+				"--input", out + "/tfidf-vectors",
+				"--trainingOutput", out + "/trainingOutput",
+				"--testOutput", out + "/testOutput", 
+				"--randomSelectionPct", "20", 
+				"--overwrite", 
+				"--sequenceFiles", 
+				"--method", "sequential" 
+		};
+		ToolRunner.run(conf, new SplitInput(), args);
+	}
+
 	/**
 	 * 生成向量
 	 * @param in
@@ -111,7 +199,7 @@ public class ChinazBayesClassifier {
 	 * @param classWebMap 分类的样本数据
 	 * @throws IOException
 	 */
-	private static void writeToSequenceFile(Configuration conf, String in, Map<String, List<ChinazWeb>> classWebMap) throws IOException {
+	private static void writeToSequenceFile(Configuration conf, String in, List<ChinazWeb> webInfoList) throws IOException {
 		// SequenceFile写入工具
 		Path path = new Path(in + "/part-m-00000");
 		SequenceFile.Writer writer = SequenceFile.createWriter(
@@ -122,16 +210,14 @@ public class ChinazBayesClassifier {
 						Writer.valueClass(Text.class)
 				});
 		
-		Iterator<Entry<String, List<ChinazWeb>>> iterator = classWebMap.entrySet().iterator();
-		while(iterator.hasNext()) {
-			Entry<String, List<ChinazWeb>> next = iterator.next();
-			String key = next.getKey();
-			List<ChinazWeb> value = next.getValue();
-			for(ChinazWeb webInfo : value) {
-				writer.append(
-						new Text("/" + key + "/" + webInfo.getDomain()), 
-						new Text(webInfo.getName() + " " + webInfo.getDesc()));
-			}
+		for (ChinazWeb webInfo : webInfoList) {
+			String class_name = webInfo.getClass_name();
+			String domain = webInfo.getDomain();
+			String name = webInfo.getName();
+			String desc = webInfo.getDesc();
+			writer.append(
+					new Text("/" + class_name + "/" + domain), 
+					new Text(name + " " + desc));
 		}
 		writer.close();
 	}
@@ -143,7 +229,7 @@ public class ChinazBayesClassifier {
 	 * @throws ClassNotFoundException
 	 * @throws SQLException
 	 */
-	private static Map<String, List<ChinazWeb>> readOriginalFile(Configuration conf) throws ClassNotFoundException, SQLException {
+	private static List<ChinazWeb> readOriginalFile(Configuration conf) throws ClassNotFoundException, SQLException {
 		// 本地数据读取
 		DBConfiguration dbConf = new DBConfiguration(conf);
 		Connection connection = dbConf.getConnection();
@@ -151,46 +237,24 @@ public class ChinazBayesClassifier {
 		ResultSet resultSet = statement.executeQuery("select domain, class_name, web_name, web_desc from chinaz_web_info");
 		
 		// 分别写入
-		Map<String, List<ChinazWeb>> classWebMap = new HashMap<String, List<ChinazWeb>>();
-		Map<String, String> classInfo = new HashMap<String, String>();
+		List<ChinazWeb> classWebList = new ArrayList<ChinazWeb>();
 		if(resultSet != null) {
-			int classIndex = 0;
 			while(resultSet.next()) {
 				String domain = resultSet.getString("domain");
 				String class_name = resultSet.getString("class_name");
 				String web_name = resultSet.getString("web_name");
 				String web_desc = resultSet.getString("web_desc");
-				ChinazWeb chinazWeb = new ChinazWeb(web_name, web_desc, domain, class_name);
-				
-				// 分类编码: key -> class_name, value -> class_id
-				String class_id = null;
-				if(classInfo.containsKey(class_name)) {
-					class_id = classInfo.get(class_name);
-				} else {
-					class_id = "BayesClassId_" + classIndex;
-					classInfo.put(class_name, class_id);
-					classIndex++;
+				if(null == class_name 
+						|| "".equals(class_name) 
+						|| "综合其他".equals(class_name)) {
+					continue;
 				}
-				
-				// 数据分类
-				if(class_id != null) {
-					if(classWebMap.containsKey(class_id)) {
-						List<ChinazWeb> list = classWebMap.get(class_id);
-						list.add(chinazWeb);
-					} else {
-						List<ChinazWeb> list = new ArrayList<ChinazWeb>();
-						list.add(chinazWeb);
-						classWebMap.put(class_id, list);
-					}
-				}
+				classWebList.add(new ChinazWeb(web_name, web_desc, domain, class_name));
 			}
 		}
 		statement.close();
 		connection.close();
-		
-		// write to class info
-		writeClassInfo(conf, classInfo);
-		return classWebMap;
+		return classWebList;
 	}
 	
 	/**
@@ -200,7 +264,7 @@ public class ChinazBayesClassifier {
 	 * @throws SQLException 
 	 * @throws ClassNotFoundException 
 	 */
-	private static void writeClassInfo(Configuration conf, Map<String, String> classInfo) throws ClassNotFoundException, SQLException {
+	public static void writeClassInfo(Configuration conf, Map<String, String> classInfo) throws ClassNotFoundException, SQLException {
 		// 本地数据读取
 		DBConfiguration dbConf = new DBConfiguration(conf);
 		Connection connection = dbConf.getConnection();
