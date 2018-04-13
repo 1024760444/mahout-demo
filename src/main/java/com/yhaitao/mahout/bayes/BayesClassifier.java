@@ -31,7 +31,7 @@ import org.apache.mahout.vectorizer.SparseVectorsFromSequenceFiles;
 import com.yhaitao.mahout.crawler.bean.ChinazWeb;
 import com.yhaitao.mahout.utils.ParamsUtils;
 
-public class ChinazBayesClassifier {
+public class BayesClassifier {
 	/**
 	 * 任务入口。
 	 * hadoop jar mahout-demo.jar com.yhaitao.mahout.bayes.ChinazBayesClassifier 
