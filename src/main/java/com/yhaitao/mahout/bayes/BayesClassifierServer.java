@@ -2,13 +2,16 @@ package com.yhaitao.mahout.bayes;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.mahout.classifier.naivebayes.AbstractNaiveBayesClassifier;
 import org.apache.mahout.classifier.naivebayes.NaiveBayesModel;
 import org.apache.mahout.classifier.naivebayes.StandardNaiveBayesClassifier;
 import org.apache.mahout.common.AbstractJob;
-import org.apache.mahout.math.RandomAccessSparseVector;
+import org.apache.mahout.common.Pair;
+import org.apache.mahout.common.iterator.sequencefile.SequenceFileIterable;
 import org.apache.mahout.math.Vector;
+import org.apache.mahout.math.VectorWritable;
 
 /**
  * 贝叶斯分类服务。
@@ -22,7 +25,7 @@ public class BayesClassifierServer extends AbstractJob {
 	 * @throws Exception 
 	 */
 	public static void main(String[] args) throws Exception {
-		ToolRunner.run(new Configuration(), new BayesClassifierServer(), args);
+		 ToolRunner.run(new Configuration(), new BayesClassifierServer(), args);
 	}
 
 	@Override
@@ -30,19 +33,17 @@ public class BayesClassifierServer extends AbstractJob {
 		Configuration conf = new Configuration();
 		conf.addResource(getConf());
 		
-//		conf.set("fs.defaultFS", "hdfs://172.19.10.33:9000/");
-		Path modelPath = new Path("/tmp/bayes/output/model");
-		
-		Vector vector = new RandomAccessSparseVector(3);
-		vector.set(0, 0.2);
-		vector.set(1, 0.3);
-		vector.set(2, 0.4);
+		Path modelPath = new Path("hdfs://172.19.10.33:8020/tmp/bayes/output/model");
 		
 		NaiveBayesModel naiveBayesModel = NaiveBayesModel.materialize(modelPath, conf);
 		AbstractNaiveBayesClassifier classifier = new StandardNaiveBayesClassifier(naiveBayesModel);
-		Vector classify = classifier.classifyFull(vector);
-		System.out.println(classify);
+		
+		// 加载DF词频信息
+		Path vectorPath = new Path("hdfs://172.19.10.33:8020/tmp/bayes/urls/vectors/part-r-00000");
+		for (Pair<Text, VectorWritable> record : new SequenceFileIterable<Text, VectorWritable>(vectorPath, true, conf)) {
+			Vector classify = classifier.classifyFull(record.getSecond().get());
+			System.err.println(record.getFirst().toString() + " : " + classify);
+		}
 		return 0;
 	}
-	
 }

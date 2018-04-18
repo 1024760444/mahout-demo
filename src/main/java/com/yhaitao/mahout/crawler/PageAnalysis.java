@@ -8,6 +8,7 @@ import java.util.List;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.mahout.common.StringTuple;
 import org.wltea.analyzer.lucene.IKAnalyzer;
 
 /**
@@ -49,6 +50,29 @@ public class PageAnalysis {
 			}
 		}
 		return termList;
+	}
+	
+	/**
+	 * 对输入文本进行分词。
+	 * @param key 文本标识
+	 * @param context 输入文本
+	 * @return 分词列表
+	 * @throws IOException 
+	 */
+	public StringTuple analyzerTo(String key, String context) throws IOException {
+		// 构造分词迭代器
+		TokenStream stream = this.analyzer.tokenStream(key, new StringReader(context));
+		CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
+		stream.reset();
+		
+		// 读取分词
+		StringTuple document = new StringTuple();
+		while(stream.incrementToken()) {
+			if(termAtt.length() > 0) {
+				document.add(new String(termAtt.buffer(), 0, termAtt.length()));
+			}
+		}
+		return document;
 	}
 	
 	/**
