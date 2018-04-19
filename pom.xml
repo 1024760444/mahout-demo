@@ -134,7 +134,7 @@
 				<configuration>
 					<archive>
 						<manifest>
-							<!-- <mainClass>com.cmiot.periodic.JobSubmit</mainClass> -->
+							<!-- <mainClass>com.yhaitao.mahout.lookalike.item.BaseOnAid</mainClass> -->
 							<addClasspath>true</addClasspath>
 							<classpathPrefix>lib/</classpathPrefix>
 						</manifest>

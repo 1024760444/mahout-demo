@@ -5,14 +5,13 @@ import java.io.IOException;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileAlreadyExistsException;
 import org.apache.hadoop.mapreduce.JobContext;
-import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
-import org.apache.mahout.math.VectorWritable;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
 /**
  * 对输出路径不做校验。 默认，输出路径存在，则异常。
  * @author yhaitao
  */
-public class NoChkFileOutputFormat extends SequenceFileOutputFormat<Text, VectorWritable> {
+public class NoChkFileOutputFormat extends TextOutputFormat<Text, Text> {
 	/**
 	 * 不对文件输出路径做任何校验
 	 */

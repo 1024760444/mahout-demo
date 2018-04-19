@@ -148,10 +148,27 @@ public class CSVUtils {
 				// 92832	[1507:10.666783,1940:7.1456504]
 				String[] split = line.split("\t");
 				if(split != null && split.length >= 2) {
-					scoresMap.putAll(forUid(split[0], split[1]));
+					scoresMap.putAll(forUidNotLog(split[0], split[1]));
 				}
 			}
 			reader.close();
+		}
+		return scoresMap;
+	}
+	
+	/**
+	 * 数据拼接。
+	 * @param uid
+	 * @param scores
+	 * @return
+	 */
+	public static Map<String, Double> forUidNotLog(String uid, String scores) {
+		String substring = scores.substring(1, scores.length() - 1);
+		String[] split = substring.split(",");
+		Map<String, Double> scoresMap = new HashMap<String, Double>();
+		for(String obj : split) {
+			String[] split2 = obj.split(":");
+			scoresMap.put(split2[0] + "_" + uid, format(Double.valueOf(split2[1])));
 		}
 		return scoresMap;
 	}
