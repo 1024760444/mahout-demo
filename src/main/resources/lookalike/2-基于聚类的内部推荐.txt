@@ -94,7 +94,7 @@ insert overwrite table test1_good_simple select distinct te.aid,te.uid from test
 
 
 
-6、按照广告个数来聚类 - 聚为173堆
+6、按照广告个数来聚类 - 聚为173堆     (0.514927)
 （1）聚类：
  mahout kmeans -i /tmp/lookalike/kmeans/input -o /tmp/lookalike/kmeans/output -dm org.apache.mahout.common.distance.CosineDistanceMeasure -c /tmp/lookalike/kmeans/clusters -k 173 -cd 0.5 -x 50 -ow -cl -xm mapreduce
 
