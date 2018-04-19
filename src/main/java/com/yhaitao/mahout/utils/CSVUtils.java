@@ -4,8 +4,12 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 import org.apache.commons.io.FileUtils;
 
@@ -105,10 +109,77 @@ public class CSVUtils {
 	private static String forOutput(List<TrainObj> trainObjList) {
 		StringBuffer ouput = new StringBuffer();
 		for(TrainObj obj : trainObjList) {
-			ouput.append(obj.getUid()).append(",")
-			.append(obj.getAid()).append(",")
-			.append((obj.getLabel() == 1) ? obj.getLabel() : 0).append("\n");
+			ouput.append(obj.getUid()).append("\t")
+			.append(obj.getAid()).append("\t")
+			.append(getLabel(obj.getLabel())).append("\n");
 		}
 		return ouput.toString();
 	}
+	
+	/**
+	 * 随机评分。
+	 * @param score
+	 * @return
+	 */
+	private static int getLabel(int score) {
+		if(score == 1) {
+			return 10 + RANDOM.nextInt(5);
+		} else {
+			return RANDOM.nextInt(5);
+		}
+	}
+	public static final Random RANDOM = new Random();
+	
+
+	/**
+	 * 加载评分数据
+	 * @param scoresPath
+	 * @return
+	 * @throws IOException
+	 */
+	public static Map<String, Double> loadScores(String scoresPath) throws IOException {
+		File path = new File(scoresPath);
+		File[] listFiles = path.listFiles();
+		Map<String, Double> scoresMap = new HashMap<String, Double>();
+		for(File sFile : listFiles) {
+			BufferedReader reader = new BufferedReader(new FileReader(sFile));
+			String line = null;
+			while((line = reader.readLine()) != null) {
+				// 92832	[1507:10.666783,1940:7.1456504]
+				String[] split = line.split("\t");
+				if(split != null && split.length >= 2) {
+					scoresMap.putAll(forUid(split[0], split[1]));
+				}
+			}
+			reader.close();
+		}
+		return scoresMap;
+	}
+	
+	/**
+	 * 数据拼接。
+	 * @param uid
+	 * @param scores
+	 * @return
+	 */
+	public static Map<String, Double> forUid(String uid, String scores) {
+		String substring = scores.substring(1, scores.length() - 1);
+		String[] split = substring.split(",");
+		Map<String, Double> scoresMap = new HashMap<String, Double>();
+		for(String obj : split) {
+			String[] split2 = obj.split(":");
+			scoresMap.put(split2[0] + "_" + uid, format(Math.log10(Double.valueOf(split2[1]))));
+		}
+		return scoresMap;
+	}
+	
+	/**
+	 * 最多保留七位小数。
+	 * @param indata
+	 * @return
+	 */
+	public static double format(double indata) {
+	    BigDecimal bigDecimal = new BigDecimal(indata);
+	    return bigDecimal.setScale(4, BigDecimal.ROUND_HALF_UP).doubleValue();
+	  }
 }
