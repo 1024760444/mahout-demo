@@ -4,43 +4,37 @@ import java.net.URI;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.MRJobConfig;
-import org.apache.hadoop.mapreduce.lib.input.CombineTextInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.ToolRunner;
+import org.apache.mahout.clustering.classify.WeightedPropertyVectorWritable;
 import org.apache.mahout.common.AbstractJob;
-import org.apache.mahout.math.VectorWritable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.yhaitao.mahout.driver.output.NoChkFileOutputFormat;
-import com.yhaitao.mahout.lookalike.job.map.To11VectorMapper;
-import com.yhaitao.mahout.lookalike.job.reduce.To11VectorReducer;
+import com.yhaitao.mahout.lookalike.job.map.KmeansResultMapper;
+import com.yhaitao.mahout.lookalike.job.reduce.KmeansResultReducer;
 import com.yhaitao.mahout.utils.ParamsUtils;
 
-/**
- * 根据用户信息，获取用户11维度特征向量
- * @author yhaitao
- *
- */
-public class To11Vector extends AbstractJob {
+public class KmeansResult2Hive extends AbstractJob {
 	/**
 	 * 日志对象
 	 */
-	private final static Logger LOGGER = LoggerFactory.getLogger(To11Vector.class);
+	private final static Logger LOGGER = LoggerFactory.getLogger(KmeansResult2Hive.class);
 	
 	/**
-	 * 用户特征数据解析。Coarse-grained
-	 * @param args -i /user/hive/warehouse/lookalike.db/use_feature_all -o /tmp/lookalike/kmeans/input -ext /tmp/lib/mahout-demo
+	 * 用户特征数据解析。 
+	 * @param args -i /tmp/lookalike/kmeans/output/clusteredPoints -o /user/hive/warehouse/lookalike.db/kmeans_cluster_uid -ext /tmp/lib/mahout-demo
 	 * @throws Exception
 	 */
 	public static void main(String[] args) throws Exception {
-		ToolRunner.run(new Configuration(), new To11Vector(), args);
+		ToolRunner.run(new Configuration(), new KmeansResult2Hive(), args);
 	}
 
 	@Override
@@ -75,24 +69,24 @@ public class To11Vector extends AbstractJob {
 		
 	    // 任务创建
 	    long start = System.currentTimeMillis();
-	    String jobName = "To11Vector-" + start;
+	    String jobName = "KmeansResult2Hive-" + start;
 	    Job job = Job.getInstance(conf, jobName);
-	    job.setJarByClass(To11Vector.class);
+	    job.setJarByClass(KmeansResult2Hive.class);
 		
 	    // Map任务
-	    job.setMapperClass(To11VectorMapper.class);
-	    job.setMapOutputKeyClass(LongWritable.class);
-	    job.setMapOutputValueClass(Text.class);
+	    job.setMapperClass(KmeansResultMapper.class);
+	    job.setMapOutputKeyClass(IntWritable.class);
+	    job.setMapOutputValueClass(WeightedPropertyVectorWritable.class);
 	    
 	    // Reduce任务
-	    job.setReducerClass(To11VectorReducer.class);
-	    job.setOutputKeyClass(LongWritable.class);
-	    job.setOutputValueClass(VectorWritable.class);
+	    job.setReducerClass(KmeansResultReducer.class);
+	    job.setOutputKeyClass(Text.class);
+	    job.setOutputValueClass(Text.class);
 	    
 	    // 输入输出指定
-	    job.setInputFormatClass(CombineTextInputFormat.class);
+	    job.setInputFormatClass(SequenceFileInputFormat.class);
 	    FileInputFormat.setInputPaths(job, input);
-	    job.setOutputFormatClass(SequenceFileOutputFormat.class);
+	    job.setOutputFormatClass(NoChkFileOutputFormat.class);
 	    NoChkFileOutputFormat.setOutputPath(job, output);
 	    
 	    // 提交并等待任务

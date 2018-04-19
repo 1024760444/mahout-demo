@@ -1,10 +1,8 @@
 package com.yhaitao.mahout.lookalike.job.map;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Map.Entry;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.io.LongWritable;
@@ -33,7 +31,7 @@ public class UserFeatureMapper extends Mapper<LongWritable, Text, Text, Text> {
 		
 		// 最细粒度，组合特征
 		String uid = null;
-		Map<String, String> featureMap = new HashMap<String, String>();
+		List<String> featureList = new ArrayList<String>();
 		if(null != split && split.length > 0) {
 			for(String ufeature : split) {
 				if(StringUtils.isNotBlank(ufeature)) {
@@ -47,7 +45,7 @@ public class UserFeatureMapper extends Mapper<LongWritable, Text, Text, Text> {
 						// 其他特征获取
 						else {
 							for(int index = 1; index < size; index++) {
-								featureMap.put(userInfo[0], userInfo[index]);
+								featureList.add(userInfo[0] + "\t" + userInfo[index]);
 							}
 						}
 					}
@@ -56,13 +54,9 @@ public class UserFeatureMapper extends Mapper<LongWritable, Text, Text, Text> {
 		}
 		
 		// 输出最小粒度用户特征
-		if(StringUtils.isNotBlank(uid) && !featureMap.isEmpty()) {
-			Iterator<Entry<String, String>> iterator = featureMap.entrySet().iterator();
-			while(iterator.hasNext()) {
-				Entry<String, String> next = iterator.next();
-				String itemName = next.getKey();
-				String itemValue = next.getValue();
-				context.write(new Text(uid), new Text(itemName + "\t" + itemValue));
+		if(StringUtils.isNotBlank(uid) && !featureList.isEmpty()) {
+			for(String data : featureList) {
+				context.write(new Text(uid), new Text(data));
 			}
 		}
 	}

@@ -1,0 +1,147 @@
+Hive操作：
+create database lookalike;
+
+1、训练数据 - train.csv
+create table lookalike.train (
+aid int,
+uid int,
+label int) 
+row format serde 'org.apache.hadoop.hive.serde2.OpenCSVSerde' with SERDEPROPERTIES ("separatorChar"=",","escapeChar"="\\") STORED AS TEXTFILE;
+
+导入训练数据
+load data local inpath '/root/jobs/lookalike/preliminary_contest_data/train.csv' into table train;
+
+统计总条数： 8798815
+select count(*) from train;
+
+统计广告总个数： 174
+select count(distinct aid) from train;
+
+统计用户总个数： 7883467
+select count(distinct uid) from train;
+
+统计种子样本数： 421961
+select count(*) from train where label='1';
+
+每个广告的种子样本数
+select aid, count(*) as simple from train where label='1' group by aid order by aid;
+
+
+
+2、测试数据 - test1.csv
+create table lookalike.test1 (
+aid int,
+uid int) 
+row format serde 'org.apache.hadoop.hive.serde2.OpenCSVSerde' with SERDEPROPERTIES ("separatorChar"=",","escapeChar"="\\") STORED AS TEXTFILE;
+
+导入数据
+load data local inpath '/root/jobs/lookalike/preliminary_contest_data/test1.csv' into table test1;
+
+统计测试总量： 2265990
+select count(*) from test1;
+
+统计广告总个数： 174
+select count(distinct aid) from test1;
+
+统计用户总个数： 2195952
+select count(distinct uid) from test1;
+
+查询测试集与训练集中，都存在的用户标识： 36171
+select distinct te.uid from test1 te inner join train tr on te.uid=tr.uid and tr.label='1';
+
+
+
+3、广告特征信息 - adFeature.csv
+create table lookalike.adFeature (
+aid int,
+advertiserId int,
+campaignId int,
+creativeId int,
+creativeSize int,
+adCategoryId int,
+productId int,
+productType int) 
+row format serde 'org.apache.hadoop.hive.serde2.OpenCSVSerde' with SERDEPROPERTIES ("separatorChar"=",","escapeChar"="\\") STORED AS TEXTFILE;
+
+导入数据
+load data local inpath '/root/jobs/lookalike/preliminary_contest_data/adFeature.csv' into table adFeature;
+
+统计广告总个数：174  174  174
+select count(distinct aid) from adFeature;
+select count(distinct tr.aid) from train tr inner join adFeature ad on tr.aid=ad.aid;
+select count(distinct te.aid) from test1 te inner join adFeature ad on te.aid=ad.aid;
+
+
+
+4、训练数据统计
+create table lookalike.uid_click_count (
+uid int,
+count int) row format delimited fields terminated by '|';
+
+用户重复点击样本
+INSERT OVERWRITE TABLE uid_click_count select uid, count(*) from train where label='1' group by uid;
+
+测试数据用户表
+create table lookalike.t_uid (
+uid int) row format delimited fields terminated by '|';
+
+测试集中数据导入表t_uid
+insert overwrite table t_uid select distinct uid from test1;
+
+
+
+5、mahout基于广告的协同过滤推荐
+（1）通过java代码将训练集train.csv转换为mahout输入文件： uid,aid,label
+（2）随机性假设。由于矩阵过于稀疏，最终推荐结果为空。所以假设：label=1时，评分（10 + rand5）；label=0时，评分（rand5）。
+（3）分布式Mahout基于item的协同过滤
+mahout org.apache.mahout.cf.taste.hadoop.item.RecommenderJob -i /tmp/lookalike/item/input -o /tmp/lookalike/item/output --tempDir  /tmp/lookalike/item/temp --similarityClassname org.apache.mahout.math.hadoop.similarity.cooccurrence.measures.PearsonCorrelationSimilarity
+
+其中， --input(path)(-i): 存储用户偏好数据的目录，该目录下可以包含一个或多个存储用户偏好数据的文本文件；
+--output(path)(-o): 结算结果的输出目录
+--numRecommendations (integer): 为每个用户推荐的item数量，默认为10
+--tempDir (path): 存储临时文件的目录，默认为当前用户的home目录下的temp目录
+--similarityClassname (-s): 向量相似度计算类
+SIMILARITY_COOCCURRENCE, SIMILARITY_LOGLIKELIHOOD, SIMILARITY_TANIMOTO_COEFFICIENT, SIMILARITY_CITY_BLOCK, SIMILARITY_COSINE, SIMILARITY_PEARSON_CORRELATION, SIMILARITY_EUCLIDEAN_DISTANCE
+
+
+
+6、通过代码计算测试集中的评分
+create table lookalike.submission (
+aid int,
+uid int,
+scores double) 
+row format serde 'org.apache.hadoop.hive.serde2.OpenCSVSerde' with SERDEPROPERTIES ("separatorChar"=",","escapeChar"="\\") STORED AS TEXTFILE;
+
+导入评分数据：
+load data local inpath '/root/jobs/lookalike/preliminary_contest_data/submission.csv' into table submission;
+
+
+
+7、测试集训练集共同用户的协同过滤
+create table lookalike.train_test1_item (
+uid int,
+aid int,
+score int) row format delimited fields terminated by '\t';
+
+导入数据：
+insert overwrite table train_test1_item select tr.uid, tr.aid, tr.label from test1 te inner join train tr on te.uid=tr.uid and tr.label='1';
+insert into table train_test1_item select tr.uid, tr.aid, tr.label from test1 te inner join train tr on te.uid=tr.uid and tr.label='1';
+
+Mahout的基于Item的推荐
+mahout org.apache.mahout.cf.taste.hadoop.item.RecommenderJob -i /user/hive/warehouse/lookalike.db/train_test1_item -o /tmp/lookalike/item2/output --tempDir  /tmp/lookalike/item2/temp -s SIMILARITY_EUCLIDEAN_DISTANCE
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

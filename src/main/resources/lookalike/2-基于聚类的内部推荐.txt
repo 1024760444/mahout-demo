@@ -1,0 +1,125 @@
+基于聚类的内部推荐
+1、Hive用户最细粒度特征信息表
+create table lookalike.use_feature_all (
+uid int,
+iname string,
+ivalue string) row format delimited fields terminated by '\t';
+
+
+
+2、程序分析用户特征文件 - userFeature.data
+程序： com.yhaitao.mahout.lookalike.job.UserFeatureJob
+命令： hadoop jar mahout-demo.jar com.yhaitao.mahout.lookalike.job.UserFeatureJob -i /tmp/lookalike/userfeature -o /user/hive/warehouse/lookalike.db/use_feature_all -ext /tmp/lib/mahout-demo
+
+
+
+3、用户信息统计
+（1）特征
+兴趣类目 ： interest1(87) interest2(65) interest3(8) interest4(8) interest5(98)
+关键词： kw1(213139)  kw2(43018)  kw3(9691)
+主题： topic1(10000) topic2(9948) topic3(5202)
+
+（2）属性
+年龄 ： age(6)
+性别 ： gender(3)
+婚姻状况 ： marriageStatus(9)
+学历 ： education(8)
+消费能力 ： consumptionAbility(3)
+地理位置 ： LBS(863)
+APP 近期安装行为 ： appIdInstall(19607)
+APP 活跃 ： appIdAction(5154)    appIdInstall or appIdAction = 23222  重合 1539
+上网连接类型 ： ct(5)
+操作系统 ： os(3)
+移动运营商 ： carrier(4)
+有房 ： house(1)
+
+
+
+4、广告信息统计
+（1）广告主ID ： advertiserId - 79
+select distinct advertiserId from adfeature;
+select advertiserId, count(aid) from adfeature group by advertiserId;
+
+（2）广告类目： adCategoryId - 40
+select distinct adcategoryid from adfeature;
+select adcategoryid, count(aid) from adfeature group by adcategoryid;
+
+（3）商品ID： productId - 33
+select distinct productId from adfeature;
+select productId, count(aid) from adfeature group by productId;
+
+（4）商品类型： productType - 4
+select distinct productType from adfeature;
+select productType, count(aid) from adfeature group by productType;
+
+
+
+5、以商品ID作为聚类标准 - 聚为33堆    (0.501936)
+（1）将所有用户进行聚类，聚为33堆
+（2）用户训练特征向量： interest1 interest2 interest3 interest4 interest5 kw1 kw2 kw3 topic1 topic2 topic3
+命令： hadoop jar mahout-demo.jar com.yhaitao.mahout.lookalike.job.To11Vector -i /user/hive/warehouse/lookalike.db/use_feature_all -o /tmp/lookalike/kmeans/input -ext /tmp/lib/mahout-demo
+
+（3）kmeans聚类
+命令： mahout kmeans -i /tmp/lookalike/kmeans/input -o /tmp/lookalike/kmeans/output -dm org.apache.mahout.common.distance.CosineDistanceMeasure -c /tmp/lookalike/kmeans/clusters -k 33 -cd 0.5 -x 50 -ow -cl -xm mapreduce
+
+（4）聚类结果输出
+Hive表：
+create table lookalike.kmeans_cluster_uid (
+clusterid int,
+uid string) row format delimited fields terminated by '\t';
+
+结果输出命令： 
+hadoop jar mahout-demo.jar com.yhaitao.mahout.lookalike.job.KmeansResult2Hive -i /tmp/lookalike/kmeans/output/clusteredPoints -o /user/hive/warehouse/lookalike.db/kmeans_cluster_uid -ext /tmp/lib/mahout-demo
+
+（5）聚类堆与广告ID的关系
+create table lookalike.kmeans_cluster_aid (
+clusterid int,
+aid string) row format delimited fields terminated by '\t';
+
+导入数据：
+insert overwrite table kmeans_cluster_aid select km.clusterid, tr.aid from kmeans_cluster_uid km inner join train tr on km.uid=tr.uid and tr.label='1';
+
+去重导入： 
+insert overwrite table kmeans_cluster_aid select distinct km.clusterid, tr.aid from kmeans_cluster_uid km inner join train tr on km.uid=tr.uid and tr.label='1';
+
+（6）测试集中正例获取
+Hive测试正样本表：
+create table lookalike.test1_good_simple (
+aid int,
+uid string) row format delimited fields terminated by '\t';
+
+导入数据
+insert overwrite table test1_good_simple select distinct te.aid,te.uid from test1 te inner join kmeans_cluster_uid cuid inner join kmeans_cluster_aid caid on te.uid=cuid.uid and cuid.clusterid=caid.clusterid and te.aid=caid.aid;
+
+
+
+
+6、按照广告个数来聚类 - 聚为173堆
+（1）聚类：
+ mahout kmeans -i /tmp/lookalike/kmeans/input -o /tmp/lookalike/kmeans/output -dm org.apache.mahout.common.distance.CosineDistanceMeasure -c /tmp/lookalike/kmeans/clusters -k 173 -cd 0.5 -x 50 -ow -cl -xm mapreduce
+
+（2）表kmeans_cluster_uid导入： 
+hadoop jar mahout-demo.jar com.yhaitao.mahout.lookalike.job.KmeansResult2Hive -i /tmp/lookalike/kmeans/output/clusteredPoints -o /user/hive/warehouse/lookalike.db/kmeans_cluster_uid -ext /tmp/lib/mahout-demo
+
+（3）表kmeans_cluster_aid导入：
+insert overwrite table kmeans_cluster_aid select distinct km.clusterid, tr.aid from kmeans_cluster_uid km inner join train tr on km.uid=tr.uid and tr.label='1';
+
+（4）测试及正例样本表：test1_good_simple
+insert overwrite table test1_good_simple select distinct te.aid,te.uid from test1 te inner join kmeans_cluster_uid cuid inner join kmeans_cluster_aid caid on te.uid=cuid.uid and cuid.clusterid=caid.clusterid and te.aid=caid.aid;
+
+基本查询：
+查询聚类个数：
+select distinct clusterid from kmeans_cluster_uid;
+
+查询每个聚类对应的广告个数：
+select clusterid, count(aid) from kmeans_cluster_aid group by clusterid;
+
+
+
+
+
+
+
+
+
+
