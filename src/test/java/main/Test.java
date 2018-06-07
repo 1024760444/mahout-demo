@@ -12,7 +12,12 @@ public class Test {
 //		String substring = url.substring(1, url.length() - 1);
 //		String[] split = substring.split(",");
 //		for(String obj : split)
-		System.err.println(Math.log10(1.0 + new Random().nextDouble()));
+		String webUrl = "/aid/uid";
+		String[] splitKeyInfo = webUrl.split("\\/");
+		for(String str : splitKeyInfo) {
+			System.err.println(str);
+		}
+		
 	}
 	
 	public static Map<String, Double> forUid(String uid, String scores) {
